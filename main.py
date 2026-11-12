@@ -44,3 +44,11 @@ def get_statistics():
 def create_dispatch_batch(destination: str, vehicle_number: str, status: str, package_ids: list):
     result = functions.add_dispatch(vehicle=vehicle_number, destination=destination, dispatch_date=None)
     return result
+
+@app.post("/login")
+def login(username: str, password: str):
+    token = functions.generate_token(username=username, password=password)
+    if token is None:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    return {"token": token}
+

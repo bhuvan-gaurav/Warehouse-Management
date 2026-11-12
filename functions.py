@@ -1,11 +1,15 @@
 from sqlalchemy import Column, Integer, Float, String, create_engine, DateTime, func, ForeignKey
 from sqlalchemy.orm import Session, declarative_base
-from datetime import datetime
-
+from datetime import datetime,timedelta
+import jwt
 DB_PATH = "warehouse.db"
 engine = create_engine(f"sqlite:///{DB_PATH}")
 Base = declarative_base()
-
+USERNAME = "Bhuvan"
+PASSWORD = "Bhuvan123"   
+ACCESS_TOKEN_EXPIRY_MINUTES = 15
+SECRET_KEY = "SECRET001"
+ALGORITHM = "HS256"
 
 class Package(Base):
     __tablename__ = "packages"
@@ -191,3 +195,27 @@ def add_dispatch(vehicle, destination, dispatch_date):
     }
     session.close()
     return response
+
+USERNAME = "admin"
+PASSWORD = "password"
+
+def verify_login(username, password):
+    if username == USERNAME and password == PASSWORD:
+        return True
+    return False
+
+def create_token(username):
+    payload = {
+        "username": username,
+        "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRY_MINUTES)
+
+    }
+    token = jwt.encode(payload, key=SECRET_KEY, algorithm=ALGORITHM)
+    return token
+
+def verify_token(token):
+    try:
+        payload = jwt.decode(jwt=token, key=SECRET_KEY, algorithms=[ALGORITHM])
+        return payload["username"] 
+    except:
+        return False
