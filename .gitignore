@@ -7,3 +7,12 @@ __pycache__/
 .env
 .env.*
 dist/
+.venv/
+.vscode/
+node_modules/
+__pycache__/
+*.py[cod]
+*.db
+.env
+.env.*
+dist/
