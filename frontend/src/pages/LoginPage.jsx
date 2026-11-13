@@ -21,8 +21,8 @@ function LoginPage({ setToken }) {
   return (
     <>
       <h2>Login</h2>
-      <button onClick={() => loginUser("Soham", "123456")}>
-        Login Soham (Admin)
+      <button onClick={() => loginUser("Bhuvan", "Bhuvan123")}>
+        Login Bhuvan (Admin)
       </button>
       <p>{message}</p>
     </>

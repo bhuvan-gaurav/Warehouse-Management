@@ -20,10 +20,10 @@ function RegisterUserPage() {
   return (
     <>
       <h2>Register</h2>
-      <button onClick={() => registerUser("Soham", "123456", "admin")}>
-        Register Soham (Admin)
+      <button onClick={() => registerUser("Bhuvan", "Bhuvan123", "admin")}>
+        Register Bhuvan (Admin)
       </button>
-      <button onClick={() => registerUser("Rahul", "123456", "staff")}>
+      <button onClick={() => registerUser("Rahul", "Rahul123", "staff")}>
         Register Rahul (Staff)
       </button>
       <p>{message}</p>
