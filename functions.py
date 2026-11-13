@@ -1,13 +1,20 @@
 from sqlalchemy import Column, Integer, Float, String, create_engine, DateTime, func, ForeignKey
 from sqlalchemy.orm import Session, declarative_base
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+import pydantic
+
+ph = PasswordHasher()
+
 DB_PATH = "warehouse.db"
 engine = create_engine(f"sqlite:///{DB_PATH}")
 Base = declarative_base()
 USERNAME = "Bhuvan"
 PASSWORD = "Bhuvan123"   
-ACCESS_TOKEN_EXPIRY_MINUTES = 15
+ACCESS_TOKEN_EXPIRY_MINUTES = 1
+REFRESH_TOKEN_EXPIRY = 7*24*60
 SECRET_KEY = "SECRET001"
 ALGORITHM = "HS256"
 
@@ -21,6 +28,15 @@ class Package(Base):
     arrival_date = Column(DateTime, default=datetime.today)
     status = Column(String)
     batch_id = Column(Integer, ForeignKey("dispatch_batches.id"), nullable=True)
+
+
+class User(Base):
+    __tablename__ = "users"
+    user_id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True)
+    password = Column(String)
+
+Base.metadata.create_all(engine)
 
 class DispatchBatch(Base):
     __tablename__ = "dispatch_batches"
@@ -68,32 +84,6 @@ def get_package(id):
     session.close()
     return response
 
-def update_package(id, name=None, destination=None, weight=None, arrival_date=None, status=None):
-    session = Session(engine)
-    package = session.query(Package).filter(Package.id == id).first()
-    response = None
-    if package:
-        if name:
-            package.name = name
-        if destination:
-            package.destination = destination
-        if weight:
-            package.weight = weight
-        if arrival_date:
-            package.arrival_date = arrival_date
-        if status:
-            package.status = status
-        session.commit()
-        response = {
-            "id": package.id,
-            "name": package.name,
-            "destination": package.destination,
-            "weight": package.weight,
-            "arrival_date": package.arrival_date,
-            "status": package.status
-        }
-    session.close()
-    return response
 
 def delete_package(id):
     session = Session(engine)
@@ -122,35 +112,11 @@ def get_all_packages(destination=None, status=None, arrival_date=None):
             "weight": package.weight,
             "arrival_date": package.arrival_date,
             "status": package.status,
-            "dispatch_id": package.dispatch_id
+            "_id": package.batch_id
         }
         response.append(temp_package)
     session.close()
     return response
-
-
-def get_all_dispatches(destination=None, vehicle=None, status=None):
-    session = Session(engine)
-    dispatches = session.query(DispatchBatch)
-    if destination:
-        dispatches = dispatches.filter(DispatchBatch.destination == destination)
-    if vehicle:
-        dispatches = dispatches.filter(DispatchBatch.vehicle == vehicle)
-    if status:
-        dispatches = dispatches.filter(DispatchBatch.status == status)
-    response = []
-    for dispatch in dispatches.all():
-        temp_dispatch = {
-            "id": dispatch.id,
-            "vehicle": dispatch.vehicle,
-            "destination": dispatch.destination,
-            "dispatch_date": dispatch.dispatch_date,
-            "status": dispatch.status
-        }
-        response.append(temp_dispatch)
-    session.close()
-    return response
-
 
 def get_summary():
     session = Session(engine)
@@ -196,26 +162,49 @@ def add_dispatch(vehicle, destination, dispatch_date):
     session.close()
     return response
 
-USERNAME = "admin"
-PASSWORD = "password"
-
 def verify_login(username, password):
-    if username == USERNAME and password == PASSWORD:
-        return True
-    return False
+    session = Session(engine)
+    user = session.query(User).filter_by(username=username).first()
+    if user is None:
+        session.close()
+        return False
+    try:
+        ph.verify(user.password, password)
+    except VerifyMismatchError:
+        session.close()
+        return False
+    session.close()
+    access_token = create_token(username, token_type="access")
+    refresh_token = create_token(username, token_type="refresh")
+    return {"access_token": access_token, "refresh_token": refresh_token}
 
-def create_token(username):
+def create_token(username, token_type):
+    time = ACCESS_TOKEN_EXPIRY_MINUTES
     payload = {
         "username": username,
-        "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRY_MINUTES)
+        "token_type": token_type,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRY_MINUTES)
 
     }
-    token = jwt.encode(payload, key=SECRET_KEY, algorithm=ALGORITHM)
+    token = jwt.encode(payload=payload, key=SECRET_KEY, algorithm=ALGORITHM)
     return token
 
-def verify_token(token):
+def verify_token(token, token_type):
     try:
         payload = jwt.decode(jwt=token, key=SECRET_KEY, algorithms=[ALGORITHM])
-        return payload["username"] 
     except:
         return False
+    if payload["token_type"] == token_type:
+        return payload["username"]
+    return False            
+
+def register_user(username: str, password: str):
+    session = Session(engine)
+    user_exists = session.query(User).filter_by(username=username).first()
+    if user_exists is not None:
+        session.close()
+        return False
+    session.add(User(username=username, password=ph.hash(password)))
+    session.commit()
+    session.close()
+    return True
